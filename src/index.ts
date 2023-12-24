@@ -4,7 +4,6 @@ import express, { Express, Request, Response } from "express";
 
 dotenv.config();
 
-
 const app: Express = express();
 app.use(express.json());
 const port = process.env.PORT || 3000;
@@ -17,11 +16,16 @@ if (!cosmos_endpoint || !cosmos_key) {
 const client = new CosmosClient({ endpoint: cosmos_endpoint, key: cosmos_key });
 
 async function prepareContainer() {
-  const { database } = await client.databases.createIfNotExists({ id: "mutexio" });
-  const { container } = await database.containers.createIfNotExists({ id: "slots" });
+  const { database } = await client.databases.createIfNotExists({
+    id: "mutexio",
+  });
+  const { container } = await database.containers.createIfNotExists({
+    id: "slots",
+  });
   return container;
 }
 
+// TODO implement GUI here
 app.get("/", async (req: Request, res: Response) => {
   const container = await prepareContainer();
   const items = await container.items.readAll().fetchAll();
@@ -34,19 +38,29 @@ app.get("/slots", async (req: Request, res: Response) => {
   res.json(items.resources);
 });
 
-app.post("/slot/:id", async (req: Request, res: Response) => {
+app.post("/slots", async (req: Request, res: Response) => {
   const container = await prepareContainer();
-  const id = req.params.id;
-  const item = { 
-    id, 
-    owner: "me",
-    resouceUri: req.body.resouceUri, 
-    blocked: false // TODO change to real owner
-  }
-  await container.items.create(item);
-  console.log(item);
+  const item = {
+    owner: req.body.owner,
+    resourceUri: req.body.resourceUri,
+    blocked: false,
+  };
+  const created = await container.items.create(item);
 
-  res.json({created: "ok"});
+  res.status(201).json(created.resource);
+});
+
+app.put("/slots/:id", async (req: Request, res: Response) => {
+  const container = await prepareContainer();
+  const item = {
+    id: req.params.id,
+    owner: req.body.owner,
+    resourceUri: req.body.resourceUri,
+    blocked: req.body.blocked,
+  };
+  const updated = await container.item(req.params.id).replace(item);
+
+  res.json(updated.resource);
 });
 
 app.listen(port, () => {
